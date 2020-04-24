@@ -3,17 +3,20 @@ const parse = require('./index');
 const assertErr = 'Assert failed';
 let fn;
 
-function _(res) {
-    if (!fn.__count) {
-        fn.__count = 0;
-    }
+function _(isTrue, desc) {
+    void 0 === fn.__count && (fn.__count = 0);
     fn.__count++;
-    !res && printError();
-    return !res;
+    isTrue && printPass(desc);
+    !isTrue && printFail(assertErr, desc);
+    return true;
 }
 
-function printError(err) {
-    console.error('at fn', fn.name, 'at case', fn.__count, 'ERROR:', err || assertErr);
+function printPass(err, desc) {
+    console.info('PASSED at fn', fn.name, '\n\tat case', fn.__count + (desc ? ` "${desc}"` : ''));
+}
+
+function printFail(err, desc) {
+    console.error('FAILED at fn', fn.name, '\n\tat case', fn.__count + (desc ? ` "${desc}"` : ''), '\n\tERROR:', err);
 }
 
 try {
@@ -21,15 +24,13 @@ try {
         const res = parse(`<div></div>`);
 
         switch (0) {
-            case _(res.length === 1):
+            case _(res.length === 1, 'Only one element'):
             case _(res[0].name === 'div'):
-                return;
-            default:
-                throw assertErr;
+            return;
         }
     })();
 
     // 
 } catch (err) {
-    printError(err);
+    printFail(err);
 }
