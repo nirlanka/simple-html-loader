@@ -73,33 +73,65 @@ const OPS = {};
 // PARSE //
 
 const opStack = [];
+let i = 0;
 
 function getLastOp() {
     return opStack[opStack.length-1];
 }
 
+let _tokens;
+
+function lookAhead(di) {
+    return _tokens[i + di];
+}
+
+function getAhead(n) {
+    return _tokens.slice(i, i + n);
+}
+
+function popAhead(n) {
+    // const _i = i;
+    // i += n;
+    // return _tokens.splice(_i + 1, n);
+    return _tokens.splice(i, i + n);
+}
+
+const regexCloseElementStart = /^<[\s]*\//;
+const regexCloseElement = /^<\/[\s]*([\w\-]+)[\s]*>$/;
+
+function handleCloseElement(matchRes, opStack) {
+    const children = [];
+    const name = matchRes[1];
+    while (getLastOp().name !== name) {
+        children.push(opStack.pop());
+    }
+    // Must be at OPS.TAG with correct name now.
+
+    getLastOp().children = children;
+}
+
 const rules = [
     {
-        regex: /<\/[\s]*([\w\-]+)[\s]*>/g,
-        handler: function handleCloseElement(matchRes, opStack) {
-            const children = [];
-            const name = matchRes[0];
-            while (getLastOp().name !== name) {
-                children.push(opStack.pop());
-            }
-            // Must be at OPS.TAG with correct name now.
-
-            getLastOp().children = children;
-        }
-    },
-    {
-        regex: /</g,
+        regex: /</,
         handler: function handleOpenTag() {
             opStack.push(createTagOp());
+
+            let di = 1;
+            while (lookAhead(di++) !== '/') {
+            }
+            // Must be at the start of the closing tag (if it is)
+            
+            if (getAhead(di).join('').match(regexCloseElementStart)) {
+                while (lookAhead(di++) !== '>') {
+                }
+                // Must be at the end of the closing tag
+                
+                handleCloseElement(popAhead(di).join('').match(regexCloseElement), opStack);
+            }
         }
     },
     {
-        regex: />/g,
+        regex: />/,
         handler: function handleCloseTag() {
             const attribs = [];
             while (getLastOp().type === OPS.ATTRIB) {
@@ -117,7 +149,7 @@ const rules = [
         }
     },
     {
-        regex: /"/g,
+        regex: /"/,
         handler: function handleQuote() {
             if (getLastOp().type === OPS.TAG && !getLastOp().isClosed) {
                 opStack.push(createAttribOp());
@@ -132,7 +164,7 @@ const rules = [
         }
     },
     {
-        regex: /(\s+)/g,
+        regex: /(\s+)/,
         handler: function handleWhitespace(matchRes) {
             if (getLastOp().type === OPS.TEXT && getLastOp().isPre) {
                 getLastOp().content += matchRes[0];
@@ -146,7 +178,7 @@ const rules = [
         }
     },
     {
-        regex: /=/g,
+        regex: /=/,
         handler: function handleEqual() {
             if (getLastOp().type === OPS.ATTRIB) {
                 getLastOp().isClosed = false;
@@ -159,7 +191,7 @@ const rules = [
         }
     },
     {
-        regex: /(.+)/g,
+        regex: /(.+)/,
         handler: function handleAll(matchRes) {
             if (getLastOp().type === OPS.TEXT) {
                 getLastOp().content += matchRes[0];
@@ -182,7 +214,11 @@ const rules = [
 ];
 
 function parse(tokens) {
-    for (const token of tokens) {
+    _tokens = tokens;
+
+    for (i = 0; i < tokens.length; i++) {
+        const token = tokens[i];
+
         let matchRes;
         const rule = rules.find(r => matchRes = token.match(r.regex));
 
